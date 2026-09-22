@@ -1,17 +1,22 @@
-from datetime import datetime
+import datetime
+from datetime import timedelta
 import pandas as pd
 import requests
 import streamlit as st
 
 st.set_page_config(
-    page_title="業務アシスタントツール", page_icon="🛠️", layout="centered"
+    page_title="ニュースアシスタントツール", page_icon="🛠️", layout="centered"
 )
 
 # サイドバーで機能を切り替え
 st.sidebar.title("📌 機能選択")
 app_mode = st.sidebar.selectbox(
     "利用するツールを選択してください",
-    ["🚗 関越道 渋滞予測レポート", "📺 市民第一ch 番組紹介ジェネレーター"],
+    [
+        "🚗 関越道 渋滞予測レポート",
+        "📺 日別番組紹介ジェネレーター",
+        "📅 週間番組紹介（月〜日）ジェネレーター",
+    ],
 )
 
 # ==========================================
@@ -64,7 +69,7 @@ if app_mode == "🚗 関越道 渋滞予測レポート":
       return None, "指定された日付の関越自動車道のデータは見つかりませんでした。"
 
     try:
-      dt_obj = datetime.strptime(date_str, "%Y%m%d")
+      dt_obj = datetime.datetime.strptime(date_str, "%Y%m%d")
       w_list = ["月", "火", "水", "木", "金", "土", "日"]
       date_formatted = (
           f"{dt_obj.month}月{dt_obj.day}日({w_list[dt_obj.weekday()]})"
@@ -120,7 +125,7 @@ if app_mode == "🚗 関越道 渋滞予測レポート":
 
 
   selected_date = st.date_input(
-      "取得したい日付を選択してください", value=datetime.today().date()
+      "取得したい日付を選択してください", value=datetime.date.today()
   )
   default_lead = (
       "＜関越自動車道の様子＞\n\n"
@@ -150,12 +155,12 @@ if app_mode == "🚗 関越道 渋滞予測レポート":
         )
 
 # ==========================================
-# 2. 市民第一ch 番組紹介ジェネレーター
+# 2. 日別番組紹介ジェネレーター
 # ==========================================
-elif app_mode == "📺 市民第一ch 番組紹介ジェネレーター":
-  st.title("📺 市民第一ch 番組紹介ジェネレーター")
+elif app_mode == "📺 日別番組紹介ジェネレーター":
+  st.title("📺 日別番組紹介ジェネレーター")
   st.write(
-      "番組表Excel（.xls / .xlsx）をアップロードして、紹介文を生成します。"
+      "番組表Excel（.xls / .xlsx）をアップロードして、日別の紹介文を生成します。"
   )
 
   uploaded_file = st.file_uploader(
@@ -196,7 +201,7 @@ elif app_mode == "📺 市民第一ch 番組紹介ジェネレーター":
         )
         st.markdown("---")
         selected_date = st.date_input(
-            "放送日を選択", value=datetime.today().date()
+            "放送日を選択", value=datetime.date.today()
         )
 
         if selected_date in schedule_dict:
@@ -233,3 +238,129 @@ elif app_mode == "📺 市民第一ch 番組紹介ジェネレーター":
         st.error("有効な番組データが見つかりませんでした。")
     except Exception as e:
       st.error(f"ファイル読み込みエラー: {e}")
+
+# ==========================================
+# 3. 週間番組紹介（月〜日）ジェネレーター
+# ==========================================
+elif app_mode == "📅 週間番組紹介（月〜日）ジェネレーター":
+  st.title("📅 週間番組紹介（月〜日）ジェネレーター")
+  st.write(
+      "番組表Excelをアップロードし、起点となる月曜日を選択すると、月曜〜日曜の紹介文を生成します。"
+  )
+
+  uploaded_files = st.file_uploader(
+      "📁 番組表Excelファイルを選択（月またぎ対応のため複数選択も可）",
+      type=["xls", "xlsx"],
+      accept_multiple_files=True,
+  )
+
+  if uploaded_files:
+    schedule_dict = {}
+
+    for file in uploaded_files:
+      try:
+        df = pd.read_excel(file, sheet_name=0, header=None)
+        for index, row in df.iterrows():
+          if index < 2:
+            continue
+          date_raw = row.iloc[0]
+          day_raw = str(row.iloc[1]).strip()
+          prog_title = str(row.iloc[2]).strip()
+
+          if pd.isna(date_raw) or not prog_title or prog_title == "nan":
+            continue
+
+          try:
+            date_dt = pd.to_datetime(str(date_raw))
+            d_key = date_dt.date()
+            schedule_dict[d_key] = {
+                "date": d_key,
+                "month": date_dt.month,
+                "day": date_dt.day,
+                "day_of_week": day_raw.replace("曜日", ""),
+                "title": prog_title.replace("\r\n", " "),
+            }
+          except:
+            continue
+      except Exception as e:
+        st.warning(f"ファイル {file.name} の読み込みスキップ: {e}")
+
+    if not schedule_dict:
+      st.error("有効な番組データが見つかりませんでした。")
+    else:
+      st.success(
+          f"読み込み成功！ 合計 {len(schedule_dict)} 日分のデータがあります。"
+      )
+      st.markdown("---")
+
+      # 直近の月曜日をデフォルト値にする
+      today = datetime.date.today()
+      default_monday = today - timedelta(days=today.weekday())
+
+      selected_monday = st.date_input(
+          "起点となる「月曜日」を選択してください", value=default_monday
+      )
+
+      # 選択された曜日を判定
+      w_names = ["月", "火", "水", "木", "金", "土", "日"]
+      sel_w_name = w_names[selected_monday.weekday()]
+
+      if selected_monday.weekday() != 0:
+        st.warning(
+            f"⚠️ 選択された日付は「{sel_w_name}曜日」です。起点となる「月曜日」を選択してください。"
+        )
+      else:
+        # 月曜〜日曜（7日間）のデータを取得
+        week_dates = [selected_monday + timedelta(days=i) for i in range(7)]
+        week_items = []
+        missing_dates = []
+
+        for d in week_dates:
+          if d in schedule_dict:
+            week_items.append(schedule_dict[d])
+          else:
+            missing_dates.append(d)
+
+        if missing_dates:
+          st.error(
+              f"以下の日付のデータがExcel内に見つかりません: "
+              + ", ".join([d.strftime("%Y/%m/%d") for d in missing_dates])
+          )
+        else:
+          start_item = week_items[0]
+          end_item = week_items[-1]
+
+          start_str = f"{start_item['month']}月{start_item['day']}日({start_item['day_of_week']})"
+          end_str = (
+              f"{end_item['month']}月{end_item['day']}日({end_item['day_of_week']})"
+          )
+
+          lines = []
+          lines.append(
+              f"≪{start_str}～{end_str}の市民第1ch(111ch)番組紹介≫\n"
+          )
+          lines.append(
+              f"{start_str}～{end_str}に\n市民第1ｃｈ(111ch)で放送する番組を紹介します。\n"
+          )
+
+          for item in week_items:
+            m = item["month"]
+            d = item["day"]
+            dow = item["day_of_week"]
+            date_formatted = f"{m}月{d:2d}日({dow})"
+            lines.append(f'{date_formatted}「{item["title"]}」')
+
+          lines.append("\n初回の放送は午前８時４５分からです。\n")
+          lines.append("是非ご覧ください。")
+
+          content = "\n".join(lines)
+          filename = f"{start_str}～{end_str}_番組紹介.txt"
+
+          st.text_area("生成プレビュー", content, height=320)
+          st.download_button(
+              f"📥 {filename} をダウンロード",
+              data=content,
+              file_name=filename,
+              mime="text/plain",
+              type="primary",
+          )

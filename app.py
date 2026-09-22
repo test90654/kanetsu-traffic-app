@@ -1,4 +1,6 @@
 from datetime import datetime
+import subprocess
+import sys
 import pandas as pd
 import requests
 import streamlit as st
@@ -164,6 +166,16 @@ elif app_mode == "📺 市民第一ch 番組紹介ジェネレーター":
 
   if uploaded_file is not None:
     try:
+      # xlrdが未インストールの場合は自動インストール
+      try:
+        import xlrd
+      except ImportError:
+        with st.spinner("初回必要なライブラリを準備しています..."):
+          subprocess.check_call(
+              [sys.executable, "-m", "pip", "install", "xlrd>=2.0.1"]
+          )
+        import xlrd
+
       df = pd.read_excel(uploaded_file, sheet_name=0, header=None)
       schedule_dict = {}
 

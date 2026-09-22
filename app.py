@@ -4,17 +4,17 @@ import requests
 
 # ページ設定
 st.set_page_config(
-    page_title="関越道 渋滞予測ジェネレーター", page_icon="🚗", layout="centered"
+    page_title="関越道 渋滞予測レポート作成ツール", page_icon="🚗", layout="centered"
 )
 
 
-def generate_traffic_report(date_str):
+def generate_traffic_report(date_str, lead_text):
   url = "https://www.drivetraffic.jp/cgi/getYosokuList"
   params = {"date": date_str, "type": "1"}
 
   headers = {
       "accept": "application/json, text/plain, */*",
-      "accept-language": "ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7",
+      "accept-language": "ja-JP,ja;q=0.9,en-US;q=0.8,en-US;q=0.7",
       "cache-control": "no-cache",
       "content-type": "application/json",
       "referer": "https://www.drivetraffic.jp/congestion",
@@ -69,7 +69,9 @@ def generate_traffic_report(date_str):
     elif "下り" in direction:
       down_items.append(item)
 
-  report = f"ネクスコ東日本による渋滞予測では、\n{date_formatted}は"
+  # 冒頭のリード文を結合
+  report = f"{lead_text}\n\n"
+  report += f"ネクスコ東日本による渋滞予測では、\n{date_formatted}は"
 
   if up_items:
     report += "上り線で、\n\n"
@@ -116,19 +118,31 @@ def generate_traffic_report(date_str):
 # UIデザイン
 st.title("🚗 関越道 渋滞予測レポート作成ツール")
 st.write(
-    "カレンダーから日付を選んでボタンを押すと、ニュース原稿風の渋滞予測が生成され、テキストファイルとしてダウンロードできます。"
+    "カレンダーから日付を選び、当日の実際の様子を入力してボタンを押すと、ニュース原稿風のレポートが作成できます。"
 )
 
-# カレンダーで日付選択（デフォルトは2026年9月23日）
+# カレンダーで日付選択
 selected_date = st.date_input(
     "取得したい日付を選択してください", value=datetime(2026, 9, 23).date()
+)
+
+# 冒頭のリード文（空欄テンプレート形式）
+default_lead = (
+    "＜関越自動車道の様子＞\n\n"
+    "現在ご覧いただいているのは午後〇時〇分ごろの関越自動車道の様子です。\n\n"
+    "上り線下り線ともに交通量が多くみられたものの\n"
+    "目立った渋滞はありませんでした。"
+)
+
+lead_input = st.text_area(
+    "冒頭のリード文（実際の様子）を編集できます", value=default_lead, height=150
 )
 
 if st.button("渋滞予測を生成する", type="primary"):
   date_str = selected_date.strftime("%Y%m%d")
 
   with st.spinner(f"{date_str} のデータを取得中..."):
-    report, error = generate_traffic_report(date_str)
+    report, error = generate_traffic_report(date_str, lead_input)
 
     if error:
       st.error(error)
@@ -136,13 +150,13 @@ if st.button("渋滞予測を生成する", type="primary"):
       st.success("データの取得と文章生成に成功しました！")
 
       # 生成された文章のプレビュー表示
-      st.text_area("生成されたレポート（プレビュー）", report, height=300)
+      st.text_area("生成されたレポート（プレビュー）", report, height=350)
 
       # ファイル名設定 (例: 20260923 -> 260923関越.txt)
       yy_mm_dd = date_str[2:]
       filename = f"{yy_mm_dd}関越.txt"
 
-      # ダウンロードボタン（スマホ・PC両対応）
+      # ダウンロードボタン
       st.download_button(
           label=f"📥 {filename} をダウンロードする",
           data=report,

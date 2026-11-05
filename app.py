@@ -1,7 +1,7 @@
 import datetime
 from datetime import timedelta
 import pandas as pd
-import requests
+from traffic_report import generate_traffic_report
 import streamlit as st
 
 st.set_page_config(
@@ -27,101 +27,6 @@ if app_mode == "🚗 関越道 渋滞予測レポート":
   st.write("カレンダーから日付を選び、レポートを生成できます。")
 
 
-  def generate_traffic_report(date_str, lead_text):
-    url = "https://www.drivetraffic.jp/cgi/getYosokuList"
-    params = {"date": date_str, "type": "1"}
-    headers = {
-        "accept": "application/json, text/plain, */*",
-        "accept-language": "ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7",
-        "cache-control": "no-cache",
-        "content-type": "application/json",
-        "referer": "https://www.drivetraffic.jp/congestion",
-        "user-agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            " (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
-        ),
-        "x-csrf-token": "diFrwFxtdPcRuATFpZIf4zeTQjMOfJmk8HylgnnJ",
-        "x-requested-with": "XMLHttpRequest",
-    }
-    cookies = {
-        "AWSALB": (
-            "77KetncUsuBMy8AVSYZFs2xJtraQlvekBQNtuFusCeVeyUZ8CpZsslVZaTc6JpKD6NxQZWLWEGQBHLzJOkpzDb9zIyyKAg7D3xoI/5CJE2nPAzsXe6tCUvfqz15H"
-        ),
-        "AWSALBCORS": (
-            "77KetncUsuBMy8AVSYZFs2xJtraQlvekBQNtuFusCeVeyUZ8CpZsslVZaTc6JpKD6NxQZWLWEGQBHLzJOkpzDb9zIyyKAg7D3xoI/5CJE2nPAzsXe6tCUvfqz15H"
-        ),
-        "laravel_session": (
-            "eyJpdiI6ImlpK1pERkwwT05rYzFhdmNnMWw3OWc9PSIsInZhbHVlIjoiSzEyeXVGMkN1MEIyT21PcW5nQjJ0ckNHbmRrak1GWmVnekNSUDE5bElMNXlZS1p6dldsQjJBdnhwbU5tN3BXVWE4WE11YXN4aldqV1dQOEdLcm9LSkYrdmtOd0h4c3pNRHc0dmYwV25RRC9YYmd0U0UxemNjT3g4VVNDOFlsNTIiLCJtYWMiOiIxYTA4YjBjMTE2YjMwNzY3Zjk3NjA3ODM5NWY3N2E2ZWQ3YTE4Mzk3NzlhN2FmZjhiMmIxYWY1N2Y4OWYwNzEyIiwidGFnIjoiIn0="
-        ),
-    }
-
-    response = requests.get(
-        url, params=params, headers=headers, cookies=cookies
-    )
-    if response.status_code != 200:
-      return None, f"データ取得失敗: ステータスコード {response.status_code}"
-
-    res_json = response.json()
-    traffic_info = (
-        res_json.get("data", {}).get("trafficStatInfo", {}).get("関越自動車道")
-    )
-    if not traffic_info or not isinstance(traffic_info, list):
-      return None, "指定された日付の関越自動車道のデータは見つかりませんでした。"
-
-    try:
-      dt_obj = datetime.datetime.strptime(date_str, "%Y%m%d")
-      w_list = ["月", "火", "水", "木", "金", "土", "日"]
-      date_formatted = (
-          f"{dt_obj.month}月{dt_obj.day}日({w_list[dt_obj.weekday()]})"
-      )
-    except:
-      date_formatted = date_str
-
-    up_items = [
-        item for item in traffic_info if "上り" in item.get("direct_name", "")
-    ]
-    down_items = [
-        item for item in traffic_info if "下り" in item.get("direct_name", "")
-    ]
-
-    report = f"{lead_text}\n\nネクスコ東日本による渋滞予測では、\n{date_formatted}は"
-
-    if up_items:
-      report += "上り線で、\n\n"
-      up_texts = []
-      for item in up_items:
-        s_ic = item.get("start_ic_name", "")
-        e_ic = item.get("end_ic_name", "")
-        s_t = item.get("start_time", "")
-        e_t = item.get("end_time", "")
-        b_neck = item.get("bottle_neck", "").replace("付近", "").strip()
-        p_dist = item.get("peak_dist", "")
-        up_texts.append(
-            f"・{s_ic}～{e_ic}で、{s_t}～{e_t}にかけて\n"
-            f" {b_neck}付近を中心とした、最大{p_dist}kmの渋滞"
-        )
-      report += "\n\n".join(up_texts) + "\n"
-
-    if down_items:
-      if up_items:
-        report += "\n"
-      report += "下り線で、\n\n"
-      down_texts = []
-      for item in down_items:
-        s_ic = item.get("start_ic_name", "")
-        e_ic = item.get("end_ic_name", "")
-        s_t = item.get("start_time", "")
-        e_t = item.get("end_time", "")
-        b_neck = item.get("bottle_neck", "").replace("付近", "").strip()
-        p_dist = item.get("peak_dist", "")
-        down_texts.append(
-            f"・{s_ic}～{e_ic}で、{s_t}～{e_t}にかけて\n"
-            f" {b_neck}付近を中心とした、最大{p_dist}kmの渋滞"
-        )
-      report += "\n\n".join(down_texts) + "\n"
-
-    report += "などが予測されています。"
-    return report, None
 
 
   selected_date = st.date_input(
